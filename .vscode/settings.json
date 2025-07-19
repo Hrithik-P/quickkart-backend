@@ -1,0 +1,14 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "quickkart_db",
+            "database": "quickkart_db",
+            "username": "postgres",
+            "password": "postgres"
+        }
+    ]
+}
