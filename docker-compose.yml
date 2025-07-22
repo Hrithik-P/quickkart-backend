@@ -16,3 +16,7 @@ services:
 
 volumes:
   pgdata:
+
+
+# docker stop quickkart_db
+# docker-compose up -d

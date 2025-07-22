@@ -6,7 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -36,6 +36,7 @@ model Category {
   id        String   @id @default(uuid()) @db.Uuid()
   name      String
   description String
+  slug      String @unique
   products  Product[]
   createdAt DateTime @default(now())
   @@map("categories")
