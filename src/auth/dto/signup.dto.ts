@@ -10,4 +10,7 @@ export class SignupDto {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @IsString()
+  role: 'ADMIN' | 'CUSTOMER';
 }

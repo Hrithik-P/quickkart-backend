@@ -5,7 +5,6 @@ import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -20,7 +19,7 @@ export class AuthService {
     return jwt.sign(payload, jwtSecret, { expiresIn: '1h' });
   }
   async signup(dto: SignupDto) {
-    const { email, password, name } = dto;
+    const { email, password, name, role } = dto;
     // check if user already exist
     const isExitingUser = await this.prisma.user.findUnique({
       where: {
@@ -41,6 +40,7 @@ export class AuthService {
         email,
         name,
         passwordHash: hash,
+        role,
       },
       select: {
         id: true,
