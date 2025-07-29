@@ -27,6 +27,8 @@ export class ProductController {
   }
 
   @Get()
+  @Roles('ADMIN', 'CUSTOMER')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   findAll() {
     return this.productService.findAll();
   }
@@ -37,11 +39,15 @@ export class ProductController {
   }
 
   @Patch(':id')
+  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
     return this.productService.update(id, updateProductDto);
   }
 
   @Delete(':id')
+  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   remove(@Param('id') id: string) {
     return this.productService.remove(id);
   }
