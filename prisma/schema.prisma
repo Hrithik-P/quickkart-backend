@@ -28,7 +28,8 @@ model User {
   role      Role     @default(CUSTOMER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  cart      Cart?
+  orders Order[]
   @@map("users")
 }
 
@@ -51,6 +52,8 @@ model Product {
   categoryId String @db.Uuid()
   category Category @relation(fields: [categoryId], references: [id])
   images ProductImage[]
+  cartItems CartItem[]
+  orderItems OrderItems[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@map("products")
@@ -66,3 +69,45 @@ model ProductImage {
   @@map("product_images")
 }
 
+model Cart {
+  id        String   @id @default(uuid()) @db.Uuid()
+  userId String @db.Uuid() @unique
+  user User @relation(fields: [userId],references: [id])
+  cartItems CartItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid()
+  productId String   @db.Uuid()   
+  quantity  Int     
+  cartId    String   @db.Uuid()  
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  @@map("cart_items")
+}
+
+model Order{
+  id        String   @id @default(uuid()) @db.Uuid()
+  userId String @db.Uuid()
+  orderNumber String
+  status String
+  total Decimal @db.Decimal(10,2)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  orderItems OrderItems[]
+
+  @@map("orders")
+}
+
+model OrderItems {
+  id        String   @id @default(uuid()) @db.Uuid()
+  productId String @db.Uuid()
+  quantity Int
+  price Decimal @db.Decimal(10,2)
+  orderId String @db.Uuid() 
+  product Product @relation(fields: [productId], references: [id])
+  order Order @relation(fields: [orderId], references: [id])
+}
