@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { RemoveFromCartDto } from './dto/remove-from-cart.dto';
+import { UserCart } from 'src/types';
 
 @Injectable()
 export class CartService {
@@ -102,7 +103,7 @@ export class CartService {
     }
   }
 
-  async getCartDetails(userId: string) {
+  async getCartDetails(userId: string): Promise<UserCart | null> {
     const cart = await this.prisma.cart.findUnique({
       where: {
         userId,
@@ -134,7 +135,7 @@ export class CartService {
       },
     });
     if (!cart) {
-      return {};
+      return null;
     }
     return cart;
   }

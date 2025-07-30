@@ -112,4 +112,6 @@ model OrderItems {
   orderId String @db.Uuid() 
   product Product @relation(fields: [productId], references: [id])
   order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
 }
