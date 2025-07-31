@@ -3,9 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Address } from '@prisma/client';
 import { CartService } from 'src/cart/cart.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { OrderItems, UserCart } from 'src/types';
+import { AddressDto } from 'src/user/dto/address.dto';
 
 @Injectable()
 export class OrderService {
@@ -13,7 +15,7 @@ export class OrderService {
     private prisma: PrismaService,
     private cart: CartService,
   ) {}
-  async placeOrder(userId: string) {
+  async placeOrder(userId: string, addressDto: AddressDto) {
     try {
       const cart: UserCart | null = await this.cart.getCartDetails(userId);
       if (cart) {
@@ -31,6 +33,28 @@ export class OrderService {
           });
           total += Number(item.product.price) * item?.quantity;
         }
+        // create address for the user or use user existing address
+        let address: Address;
+        if (addressDto?.addressId) {
+          address = (await this.prisma.address.findUnique({
+            where: {
+              id: addressDto?.addressId,
+              userId,
+            },
+          })) as Address;
+        } else {
+          address = await this.prisma.address.create({
+            data: {
+              userId: userId,
+              street: addressDto.street,
+              city: addressDto.city,
+              state: addressDto.state,
+              zipCode: addressDto.zipCode,
+              country: addressDto.country,
+            },
+          });
+        }
+
         // create a order with orderItems and total
         const order = this.prisma.order.create({
           data: {
@@ -38,6 +62,7 @@ export class OrderService {
             orderNumber: `ORD-${Date.now()}`,
             status: 'pending',
             total,
+            addressId: address?.id,
             orderItems: {
               createMany: {
                 data: orderItems,
@@ -73,6 +98,19 @@ export class OrderService {
       }
     } catch (err) {
       throw new NotFoundException(err);
+    }
+  }
+
+  async getOrderHistory(userId: string) {
+    try {
+      return this.prisma.order.findMany({
+        where: { userId },
+        include: {
+          orderItems: true,
+        },
+      });
+    } catch (err) {
+      throw new BadRequestException(err);
     }
   }
 }
