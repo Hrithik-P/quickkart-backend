@@ -22,19 +22,9 @@ export class OrderService {
         if (cart?.cartItems?.length === 0) {
           throw new BadRequestException('Your cart is empty');
         }
-        // create a orderItem array from the cartItems
-        const orderItems: OrderItems[] = [];
-        let total: number = 0;
-        for (const item of cart.cartItems) {
-          orderItems.push({
-            productId: item?.product?.id,
-            price: item?.product?.price,
-            quantity: item?.quantity,
-          });
-          total += Number(item.product.price) * item?.quantity;
-        }
         // create address for the user or use user existing address
         let address: Address;
+
         if (addressDto?.addressId) {
           address = (await this.prisma.address.findUnique({
             where: {
@@ -42,7 +32,13 @@ export class OrderService {
               userId,
             },
           })) as Address;
-        } else {
+        } else if (
+          addressDto?.city &&
+          addressDto?.country &&
+          addressDto?.state &&
+          addressDto?.street &&
+          addressDto?.zipCode
+        ) {
           address = await this.prisma.address.create({
             data: {
               userId: userId,
@@ -53,6 +49,20 @@ export class OrderService {
               country: addressDto.country,
             },
           });
+        } else {
+          return new BadRequestException('Address is missing required fields');
+        }
+
+        // create a orderItem array from the cartItems
+        const orderItems: OrderItems[] = [];
+        let total: number = 0;
+        for (const item of cart.cartItems) {
+          orderItems.push({
+            productId: item?.product?.id,
+            price: item?.product?.price,
+            quantity: item?.quantity,
+          });
+          total += Number(item.product.price) * item?.quantity;
         }
 
         // create a order with orderItems and total
