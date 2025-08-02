@@ -2,22 +2,33 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProductService {
-  constructor(private prisma: PrismaService) {}
-  async create(createProductDto: CreateProductDto) {
-    const { categoryId, imageUrls, name, description, price, stock } =
-      createProductDto;
+  constructor(
+    private prisma: PrismaService,
+    private cloudinary: CloudinaryService,
+  ) {}
+  async create(
+    createProductDto: CreateProductDto,
+    files: Express.Multer.File[],
+  ) {
+    const { categoryId, name, description, price, stock } = createProductDto;
     if (!categoryId) {
-      throw new NotFoundException('Category is required to create a product');
+      return {
+        message: 'Category is required to create a product',
+      };
     }
     const category = await this.prisma?.category?.findUnique({
       where: { id: categoryId },
     });
     if (!category) {
-      throw new NotFoundException('Category not found');
+      return {
+        message: 'Category not found',
+      };
     }
+    const uploadedImages = await this.cloudinary.uploadFiles(files);
     return this.prisma?.product?.create({
       data: {
         categoryId,
@@ -26,7 +37,7 @@ export class ProductService {
         price,
         description: description ?? '',
         images: {
-          create: imageUrls?.map((url) => ({ url })) || [],
+          create: uploadedImages?.map((url) => ({ url })) || [],
         },
       },
       include: {
@@ -88,33 +99,39 @@ export class ProductService {
     });
   }
 
-  async update(id: string, updateProductDto: UpdateProductDto) {
-    const { categoryId, imageUrls, ...rest } = updateProductDto;
+  async update(
+    id: string,
+    updateProductDto: UpdateProductDto,
+    files: Express.Multer.File[],
+  ) {
+    const { categoryId, ...rest } = updateProductDto;
 
     if (categoryId) {
       const category = await this.prisma.category.findUnique({
         where: { id: categoryId },
       });
       if (!category) {
-        throw new NotFoundException('Category not found');
+        return new NotFoundException('Category not found');
       }
     }
 
     // Delete old images if new ones are provided
-    if (imageUrls) {
+    if (files) {
       await this.prisma.productImage.deleteMany({
         where: { productId: id },
       });
     }
+
+    const uploadedImages = await this.cloudinary.uploadFiles(files || []);
 
     return this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
         ...(categoryId ? { categoryId } : {}),
-        ...(imageUrls && {
+        ...(uploadedImages?.length > 0 && {
           images: {
-            create: imageUrls.map((url) => ({ url })),
+            create: uploadedImages.map((url) => ({ url })),
           },
         }),
       },

@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -32,9 +31,4 @@ export class CreateProductDto {
 
   @IsUUID()
   categoryId: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  imageUrls: string[];
 }
