@@ -42,10 +42,15 @@ export class CloudinaryService {
 
       const uploadedImages = await Promise.all(uploadPromises);
 
-      return uploadedImages.map((result) => result.secure_url || result.url);
+      return uploadedImages.map((result) => ({
+        url: result.secure_url || result.url,
+        public_id: result?.public_id,
+      }));
     } catch (error) {
-      console.error('Error uploading files to Cloudinary:', error);
-      throw new BadRequestException('Failed to upload files to Cloudinary');
+      throw new BadRequestException(
+        error,
+        'Failed to upload files to Cloudinary',
+      );
     }
   }
 
@@ -83,12 +88,10 @@ export class CloudinaryService {
     });
   }
 
-  async deleteFile(publicId: string): Promise<{ result: string }> {
+  async deleteFile(publicId: string) {
     try {
-      const result = await cloudinary.uploader.destroy(publicId);
-      return result as { result: string };
-    } catch (error) {
-      console.error('Error deleting file from Cloudinary:', error);
+      await cloudinary.uploader.destroy(publicId);
+    } catch {
       throw new BadRequestException('Failed to delete file from Cloudinary');
     }
   }

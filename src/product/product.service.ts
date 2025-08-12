@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -14,41 +18,49 @@ export class ProductService {
     createProductDto: CreateProductDto,
     files: Express.Multer.File[],
   ) {
-    const { categoryId, name, description, price, stock } = createProductDto;
-    if (!categoryId) {
-      return {
-        message: 'Category is required to create a product',
-      };
-    }
-    const category = await this.prisma?.category?.findUnique({
-      where: { id: categoryId },
-    });
-    if (!category) {
-      return {
-        message: 'Category not found',
-      };
-    }
-    const uploadedImages = await this.cloudinary.uploadFiles(files);
-    return this.prisma?.product?.create({
-      data: {
-        categoryId,
-        name,
-        stock,
-        price,
-        description: description ?? '',
-        images: {
-          create: uploadedImages?.map((url) => ({ url })) || [],
-        },
-      },
-      include: {
-        images: {
-          select: {
-            id: true,
-            url: true,
+    try {
+      const { categoryId, name, description, price, stock } = createProductDto;
+      if (!categoryId) {
+        return {
+          message: 'Category is required to create a product',
+        };
+      }
+      const category = await this.prisma?.category?.findUnique({
+        where: { id: categoryId },
+      });
+      if (!category) {
+        return {
+          message: 'Category not found',
+        };
+      }
+      const uploadedImages = await this.cloudinary.uploadFiles(files);
+      return this.prisma?.product?.create({
+        data: {
+          categoryId,
+          name,
+          stock,
+          price,
+          description: description ?? '',
+          images: {
+            create:
+              uploadedImages?.map(({ url, public_id }) => ({
+                url,
+                public_id,
+              })) || [],
           },
         },
-      },
-    });
+        include: {
+          images: {
+            select: {
+              id: true,
+              url: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      return new BadRequestException(error);
+    }
   }
 
   findAll() {
@@ -104,46 +116,71 @@ export class ProductService {
     updateProductDto: UpdateProductDto,
     files: Express.Multer.File[],
   ) {
-    const { categoryId, ...rest } = updateProductDto;
+    try {
+      const { categoryId, ...rest } = updateProductDto;
 
-    if (categoryId) {
-      const category = await this.prisma.category.findUnique({
-        where: { id: categoryId },
-      });
-      if (!category) {
-        return new NotFoundException('Category not found');
+      if (categoryId) {
+        const category = await this.prisma.category.findUnique({
+          where: { id: categoryId },
+        });
+        if (!category) {
+          return new NotFoundException('Category not found');
+        }
       }
-    }
 
-    // Delete old images if new ones are provided
-    if (files) {
-      await this.prisma.productImage.deleteMany({
-        where: { productId: id },
-      });
-    }
-
-    const uploadedImages = await this.cloudinary.uploadFiles(files || []);
-
-    return this.prisma.product.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(categoryId ? { categoryId } : {}),
-        ...(uploadedImages?.length > 0 && {
-          images: {
-            create: uploadedImages.map((url) => ({ url })),
+      // Delete old images if new ones are provided
+      if (files) {
+        const uploadedImagePublicIds = await this.prisma.productImage?.findMany(
+          {
+            where: {
+              productId: id,
+            },
+            select: {
+              publicId: true,
+            },
           },
-        }),
-      },
-      include: {
-        images: {
-          select: {
-            id: true,
-            url: true,
+        );
+        if (uploadedImagePublicIds?.length) {
+          await Promise.all(
+            uploadedImagePublicIds
+              .filter((el) => Boolean(el.publicId))
+              .map((el) => this.cloudinary.deleteFile(el.publicId as string)),
+          );
+        }
+        await this.prisma.productImage.deleteMany({
+          where: { productId: id },
+        });
+      }
+
+      const uploadedImages = await this.cloudinary.uploadFiles(files || []);
+
+      return this.prisma.product.update({
+        where: { id },
+        data: {
+          ...rest,
+          ...(categoryId ? { categoryId } : {}),
+          ...(uploadedImages?.length > 0 && {
+            images: {
+              create:
+                uploadedImages?.map(({ url, public_id }) => ({
+                  url,
+                  public_id,
+                })) || [],
+            },
+          }),
+        },
+        include: {
+          images: {
+            select: {
+              id: true,
+              url: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error) {
+      return new BadRequestException(error);
+    }
   }
 
   async remove(id: string) {
