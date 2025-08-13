@@ -20,21 +20,25 @@ export class ProductService {
   ) {
     try {
       const { categoryId, name, description, price, stock } = createProductDto;
+
+      // Validate category
       if (!categoryId) {
-        return {
-          message: 'Category is required to create a product',
-        };
+        throw new BadRequestException(
+          'Category is required to create a product',
+        );
       }
-      const category = await this.prisma?.category?.findUnique({
+      const category = await this.prisma.category.findUnique({
         where: { id: categoryId },
       });
       if (!category) {
-        return {
-          message: 'Category not found',
-        };
+        throw new NotFoundException('Category not found');
       }
-      const uploadedImages = await this.cloudinary.uploadFiles(files);
-      return this.prisma?.product?.create({
+
+      // Upload images if provided
+      const uploadedImages = await this.cloudinary.uploadFiles(files || []);
+
+      // Create product with images in a single atomic operation
+      return this.prisma.product.create({
         data: {
           categoryId,
           name,
@@ -42,11 +46,10 @@ export class ProductService {
           price,
           description: description ?? '',
           images: {
-            create:
-              uploadedImages?.map(({ url, public_id }) => ({
-                url,
-                public_id,
-              })) || [],
+            create: uploadedImages.map(({ url, public_id }) => ({
+              url,
+              publicId: public_id,
+            })),
           },
         },
         include: {
@@ -56,14 +59,28 @@ export class ProductService {
               url: true,
             },
           },
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       });
     } catch (error) {
-      return new BadRequestException(error);
+      // Bubble up known HTTP exceptions; wrap others
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to create product');
     }
   }
 
   findAll() {
+    // Fetch all products with related category and images
     return this.prisma.product.findMany({
       include: {
         images: {
@@ -88,8 +105,9 @@ export class ProductService {
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.product.findUnique({
+  async findOne(id: string) {
+    // Fetch a single product; throw if not found to keep API predictable
+    const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
         images: {
@@ -109,6 +127,10 @@ export class ProductService {
         categoryId: true,
       },
     });
+    if (!product) {
+      throw new NotFoundException(`Product with id '${id}' not found`);
+    }
+    return product;
   }
 
   async update(
@@ -143,7 +165,7 @@ export class ProductService {
             images: {
               create: uploadedImages.map(({ url, public_id }) => ({
                 url,
-                public_id,
+                publicId: public_id,
               })),
             },
           },
@@ -213,18 +235,14 @@ export class ProductService {
   }
 
   async remove(id: string) {
-    const product = await this.findOne(id);
-    if (!product) {
-      throw new NotFoundException(`Product with id '${id}' not found`);
-    }
-    if (product?.images?.length) {
-      await this.prisma.productImage.deleteMany({
-        where: { productId: id },
-      });
-    }
+    // Ensure product exists; findOne will throw if it does not
+    await this.findOne(id);
+
+    // Delete all associated images from Cloudinary and DB
+    await this.handleImageUpdate(id);
+
+    // Delete the product record
     await this.prisma.product.delete({ where: { id } });
-    return {
-      message: 'Product deleted successfully',
-    };
+    return { message: 'Product deleted successfully' };
   }
 }
