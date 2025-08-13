@@ -119,55 +119,51 @@ export class ProductService {
     try {
       const { categoryId, ...rest } = updateProductDto;
 
+      // Validate category if provided
       if (categoryId) {
         const category = await this.prisma.category.findUnique({
           where: { id: categoryId },
         });
         if (!category) {
-          return new NotFoundException('Category not found');
+          throw new NotFoundException('Category not found');
         }
       }
 
-      // Delete old images if new ones are provided
-      if (files) {
-        const uploadedImagePublicIds = await this.prisma.productImage?.findMany(
-          {
-            where: {
-              productId: id,
-            },
-            select: {
-              publicId: true,
+      // Handle image updates: delete old images and upload new ones
+      if (files && files.length > 0) {
+        await this.handleImageUpdate(id);
+        const uploadedImages = await this.cloudinary.uploadFiles(files);
+
+        // Update product with new images
+        return this.prisma.product.update({
+          where: { id },
+          data: {
+            ...rest,
+            ...(categoryId && { categoryId }),
+            images: {
+              create: uploadedImages.map(({ url, public_id }) => ({
+                url,
+                public_id,
+              })),
             },
           },
-        );
-        if (uploadedImagePublicIds?.length) {
-          await Promise.all(
-            uploadedImagePublicIds
-              .filter((el) => Boolean(el.publicId))
-              .map((el) => this.cloudinary.deleteFile(el.publicId as string)),
-          );
-        }
-        await this.prisma.productImage.deleteMany({
-          where: { productId: id },
+          include: {
+            images: {
+              select: {
+                id: true,
+                url: true,
+              },
+            },
+          },
         });
       }
 
-      const uploadedImages = await this.cloudinary.uploadFiles(files || []);
-
+      // Update product without changing images
       return this.prisma.product.update({
         where: { id },
         data: {
           ...rest,
-          ...(categoryId ? { categoryId } : {}),
-          ...(uploadedImages?.length > 0 && {
-            images: {
-              create:
-                uploadedImages?.map(({ url, public_id }) => ({
-                  url,
-                  public_id,
-                })) || [],
-            },
-          }),
+          ...(categoryId && { categoryId }),
         },
         include: {
           images: {
@@ -179,8 +175,41 @@ export class ProductService {
         },
       });
     } catch (error) {
-      return new BadRequestException(error);
+      // Log error for debugging (you can add proper logging here)
+      console.error('Product update error:', error);
+
+      // Re-throw specific exceptions, wrap others in BadRequestException
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to update product');
     }
+  }
+
+  /**
+   * Helper method to handle image updates
+   * Deletes old images from Cloudinary and database
+   */
+  private async handleImageUpdate(productId: string): Promise<void> {
+    // Get existing image public IDs for deletion from Cloudinary
+    const existingImages = await this.prisma.productImage.findMany({
+      where: { productId },
+      select: { publicId: true },
+    });
+
+    // Delete images from Cloudinary if they have public IDs
+    if (existingImages.length > 0) {
+      const cloudinaryDeletePromises = existingImages
+        .filter((img) => img.publicId)
+        .map((img) => this.cloudinary.deleteFile(img.publicId as string));
+
+      await Promise.all(cloudinaryDeletePromises);
+    }
+
+    // Remove all image records from database
+    await this.prisma.productImage.deleteMany({
+      where: { productId },
+    });
   }
 
   async remove(id: string) {
