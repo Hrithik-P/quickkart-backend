@@ -104,6 +104,7 @@ model Order{
   address  Address @relation(fields: [addressId], references: [id])
   user User @relation(fields: [userId], references: [id])
   orderItems OrderItems[]
+  payment     Payment?
   @@map("orders")
 }
 
@@ -132,4 +133,20 @@ model Address{
   user        User  @relation(fields: [userId], references: [id])
   orders Order[]
   @@map("addresses")
+}
+
+model Payment {
+  id                      String   @id @default(uuid())
+  orderId                 String   @unique
+  paymentMethod String //card , upi etc
+  paymentIntentId   String   @unique
+  amount                  Decimal
+  currency                String
+  status                  String   // pending, succeeded, failed, refunded
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  order          Order    @relation(fields: [orderId], references: [id])
+
+
+  @@map("payments")
 }
