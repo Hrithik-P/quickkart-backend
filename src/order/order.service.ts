@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Address } from '@prisma/client';
 import { CartService } from 'src/cart/cart.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { StripeService } from 'src/stripe/stripe.service';
 import { OrderItems } from 'src/types';
 import { AddressDto } from 'src/user/dto/address.dto';
 
@@ -11,7 +11,7 @@ export class OrderService {
   constructor(
     private prisma: PrismaService,
     private cart: CartService,
-    private config: ConfigService,
+    private stripeService: StripeService,
   ) {}
   async placeOrder(userId: string, addressDto: AddressDto) {
     // verify the user cart is not empty
@@ -72,8 +72,7 @@ export class OrderService {
     }
 
     // create a pending order in transaction (no stock update yet)
-    const currency = this.config.get<string>('STRIPE_CURRENCY') || 'inr';
-    const amountInMinorUnits = Math.round(total * 100);
+    const amountInCents = Math.round(total * 100);
     const order = await this.prisma.order.create({
       data: {
         userId,
@@ -91,28 +90,28 @@ export class OrderService {
 
     // create paymentIntent with idempotency
 
-    const paymentIntent = await this.stripService.createPaymentIntent(
-      amountInMinorUnits,
-      currency,
-      { orderId: order.id, userId },
-      `order-${order.id}`,
-    );
+    const paymentIntent = await this.stripeService.createPaymentIntent({
+      amount: amountInCents,
+      orderId: order.id,
+      userId,
+    });
 
     // store payment records
     await this.prisma.payment.create({
-      data{
+      data: {
         orderId: order.id,
-        stripPaymentIntentId: paymentIntent.id,
-        amount: amountInMinorUnits,
-        currency,
+        paymentIntentId: paymentIntent.id,
+        amount: amountInCents,
+        currency: 'usd',
         status: paymentIntent.status,
+        paymentMethod: 'card',
       },
     });
 
     return {
       clientSecret: paymentIntent.status,
       orderId: order.id,
-    }
+    };
   }
 
   async getOrderHistory(userId: string) {

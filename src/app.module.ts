@@ -10,6 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     CartModule,
     OrderModule,
     CloudinaryModule,
+    StripeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
