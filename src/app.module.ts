@@ -11,6 +11,7 @@ import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { StripeModule } from './stripe/stripe.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { StripeModule } from './stripe/stripe.module';
     OrderModule,
     CloudinaryModule,
     StripeModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

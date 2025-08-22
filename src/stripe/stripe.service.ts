@@ -22,4 +22,15 @@ export class StripeService {
       },
     });
   }
+
+  constructEvent(rawBody: Buffer, signature: string, webhookSecret: string) {
+    this.stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  }
+
+  async refundPayment(paymentIntentId: string, amount: number) {
+    return this.stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      amount,
+    });
+  }
 }
